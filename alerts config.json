@@ -4,13 +4,14 @@
   "price_min": 0.1,
   "price_max": 5,
   "min_change_pct": 15,
-  "min_volume": { "premarket": 100000, "regular": 500000, "postmarket": 100000 },
+  "min_volume": { "premarket": 50000, "regular": 500000, "postmarket": 50000 },
   "mcap_max_million": 500,
   "float_max_million": 50,
-  "rvol_min": 3,
+  "rvol_min": { "premarket": 0, "regular": 3, "postmarket": 0 },
   "rsi_min": null,
   "rsi_max": null,
   "interval_seconds": 30,
   "realert_step": 30,
-  "max_alerts_per_scan": 5
+  "max_alerts_per_scan": 5,
+  "heartbeat_minutes": 60
 }
