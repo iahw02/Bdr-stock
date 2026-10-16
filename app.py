@@ -6,6 +6,8 @@ import io
 import ftplib
 import re
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -252,13 +254,19 @@ def tv_scan(c: dict) -> list:
         f.append(_rng("RSI" + sfx, c["rsi_lo"], c["rsi_hi"]))
     if c["use_macd"]:
         f.append(_rng("MACD.macd" + sfx, c["macd_lo"], c["macd_hi"]))
+    if c.get("chg_min", 0) > 0:
+        f.append({"left": "change", "operation": "greater", "right": c["chg_min"]})
+    if c.get("vol_min", 0) > 0:
+        f.append({"left": "volume", "operation": "greater", "right": c["vol_min"]})
+    if c.get("float_max", 0) > 0:
+        f.append(_rng("float_shares_outstanding", 0, c["float_max"] * 1e6))
     if c["pm_chg"] > 0:
         f.append({"left": "premarket_change", "operation": "greater", "right": c["pm_chg"]})
     if c["pm_vol"] > 0:
         f.append({"left": "premarket_volume", "operation": "greater", "right": c["pm_vol"]})
     if c["rvol"] > 0:
         f.append({"left": "relative_volume_10d_calc", "operation": "greater", "right": c["rvol"]})
-    cols = ["name", "description", "close", "RSI" + sfx, "MACD.macd" + sfx, "market_cap_basic",
+    cols = ["name", "description", "close", "change", "volume", "RSI" + sfx, "MACD.macd" + sfx, "market_cap_basic",
             "premarket_change", "premarket_volume", "relative_volume_10d_calc",
             "float_shares_outstanding", "price_52_week_high", "price_52_week_low"]
     payload = {
@@ -347,7 +355,9 @@ def run_scan(c: dict):
             continue
         row = {
             "الرمز": sym, "الشركة": d.get("description") or "",
-            "السعر": _num(d.get("close"), 3),
+            "السعر": _num(d.get("close"), 4),
+            "التغير اليوم %": _num(d.get("change"), 1),
+            "حجم اليوم": None if d.get("volume") is None else int(d["volume"]),
             "Premarket %": _num(d.get("premarket_change"), 1),
             "حجم Premarket": None if d.get("premarket_volume") is None else int(d["premarket_volume"]),
             "الحجم النسبي": _num(d.get("relative_volume_10d_calc"), 1),
@@ -367,6 +377,7 @@ def run_scan(c: dict):
 
     st.session_state.results = results
     st.session_state.done = True
+    st.session_state.updated = datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M:%S')
     prog.empty()
 
 
@@ -379,6 +390,8 @@ def show_results():
     df = pd.DataFrame(res)
     df["الشارت"] = "https://www.tradingview.com/chart/?symbol=" + df["الرمز"]
     st.subheader(f"النتائج ({len(df)})")
+    if st.session_state.get("updated"):
+        st.caption(f"آخر تحديث: {st.session_state.updated} بتوقيت نيويورك")
     st.dataframe(
         df, use_container_width=True, hide_index=True,
         column_config={"الشارت": st.column_config.LinkColumn("الشارت", display_text="فتح")},
@@ -402,6 +415,10 @@ if mode == "فحص السوق":
                                  help="0 = بدون فلتر. مثال: 20 يعني بس الأسهم اللي طالعة 20% فأكثر قبل الافتتاح")
         pm_vol = st.number_input("أقل حجم Premarket (سهم)", 0, 1_000_000_000, 0, 10000)
         rvol = st.number_input("أقل حجم نسبي (x)", 0.0, 1000.0, 0.0, 1.0, format="%.1f")
+        chg_min = st.number_input("أقل تغير اليوم (%)", 0.0, 1000.0, 0.0, 5.0, format="%.1f",
+                                  help="التغير من إغلاق أمس. 0 = بدون فلتر")
+        vol_min = st.number_input("أقل حجم اليوم (سهم)", 0, 2_000_000_000, 0, 100000)
+        float_max = st.number_input("أقصى Float (مليون سهم، 0 = بدون حد)", 0.0, 10000.0, 0.0, 5.0, format="%.1f")
 
     with st.expander("02 التقسيم العكسي"):
         use_rs = st.checkbox("فقط الأسهم اللي سوّت تقسيم عكسي", value=False)
@@ -433,7 +450,7 @@ if mode == "فحص السوق":
         rsi_lo=rsi_lo, rsi_hi=rsi_hi, macd_lo=macd_lo, macd_hi=macd_hi,
         borrow=borrow, avail_min=avail_min, avail_max=avail_max,
         use_sup=use_sup, tests=tests, window=window, max_rise=max_rise,
-        pm_chg=pm_chg, pm_vol=pm_vol, rvol=rvol,
+        pm_chg=pm_chg, pm_vol=pm_vol, rvol=rvol, float_max=float_max, chg_min=chg_min, vol_min=vol_min,
     )
 
     auto = st.checkbox("تحديث تلقائي مباشر", value=False)
