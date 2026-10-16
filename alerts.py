@@ -21,13 +21,32 @@ SESSIONS = {
 }
 COLS = ["name", "description", "close", "change", "volume", "premarket_change", "premarket_volume",
         "postmarket_change", "postmarket_volume", "relative_volume_10d_calc",
-        "float_shares_outstanding", "market_cap_basic", "RSI"]
+        "float_shares_outstanding", "market_cap_basic", "RSI", "update_mode"]
 
 
 def load_cfg() -> dict:
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "alerts_config.json"), encoding="utf-8") as f:
         return json.load(f)
+
+
+def tv_headers() -> dict:
+    h = {"User-Agent": "Mozilla/5.0"}
+    ck = os.environ.get("TV_COOKIE", "").strip()   # اختياري: كوكي حساب TradingView للبيانات اللحظية
+    if ck:
+        h["Cookie"] = ck
+    return h
+
+
+def data_mode(d: dict) -> str:
+    m = d.get("update_mode")
+    if not m:
+        return "غير معروف"
+    if "delayed" in m:
+        digits = "".join(ch for ch in m if ch.isdigit())
+        mins = int(digits) // 60 if digits else 0
+        return f"⏱ متأخرة {mins} دقيقة" if mins else "⏱ متأخرة"
+    return "⚡ لحظية"
 
 
 def active_session(now: datetime):
@@ -83,7 +102,7 @@ def build_payload(cfg: dict, session: str, relaxed: bool = False) -> dict:
 
 def scan(cfg: dict, session: str, relaxed: bool = False) -> list:
     r = requests.post(SCAN_URL, json=build_payload(cfg, session, relaxed), timeout=30,
-                      headers={"User-Agent": "Mozilla/5.0"})
+                      headers=tv_headers())
     if not r.ok:
         raise RuntimeError(f"الماسح رد {r.status_code}: {r.text[:300]}")
     js = r.json()
@@ -108,6 +127,7 @@ def format_msg(d: dict) -> str:
     return "\n".join([
         f"🚨 {d['name']} — {d.get('description') or ''}",
         f"الجلسة: {SESSIONS[d['_session']][2]}",
+        f"نوع البيانات: {data_mode(d)}",
         f"السعر: ${d['close']:.4f}",
         f"التغير: {'غير متوفر' if chg is None else f'{chg:+.1f}%'}",
         f"الحجم: {'غير متوفر' if vol is None else f'{int(vol):,}'}",
@@ -152,6 +172,13 @@ def run_scan_test(cfg, token, chat_id) -> int:
     send(token, chat_id, f"✅ الماسح شغال ورجّع {len(rows)} أسهم (أعلى حجم في نطاق سعرك). هذي عينة:")
     for d in rows[:3]:
         send(token, chat_id, format_msg(d))
+    mode = data_mode(rows[0])
+    if "متأخرة" in mode:
+        send(token, chat_id, f"⚠️ نوع بيانات الماسح: {mode}.\n"
+                             "يعني أي تنبيه يوصلك يكون متأخر بنفس المقدار عن السوق الحقيقي. "
+                             "هذا من المصدر المجاني، مو من البوت.")
+    else:
+        send(token, chat_id, f"✅ نوع بيانات الماسح: {mode}")
     # الآن نجرب شروطك الحقيقية ونخبرك بالعدد
     try:
         real = scan(cfg, session)
