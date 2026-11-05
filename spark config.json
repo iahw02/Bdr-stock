@@ -1,0 +1,38 @@
+{
+  "source": "alpaca",
+  "alpaca_feed": "iex",
+  "universe": {
+    "float_min_million": 0.05,
+    "float_max_million": 5,
+    "price_min": 0.1,
+    "price_max": 10,
+    "exchanges": ["NASDAQ", "NYSE", "AMEX"],
+    "max_symbols": 800,
+    "refresh_minutes": 60
+  },
+  "poll_seconds": 5,
+  "warmup_minutes": 5,
+  "spark": {
+    "window_seconds": 60,
+    "baseline_minutes": 30,
+    "spike_x": 6,
+    "baseline_floor_shares": 1500,
+    "min_window_shares": 8000,
+    "min_window_dollar": 2500,
+    "min_change_pct": 1,
+    "max_change_pct": 40,
+    "max_above_low_pct": 30,
+    "require_rising": true
+  },
+  "alerts": {
+    "rearm_extra_pct": 30,
+    "max_per_poll": 3,
+    "max_per_minute": 3,
+    "max_per_day": 10,
+    "min_score": 40
+  },
+  "sec_check": true,
+  "heartbeat_minutes": 60,
+  "exit_after_close": true,
+  "max_run_minutes": 350
+}
